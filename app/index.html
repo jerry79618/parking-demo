@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f6f8f7" />
+  <title>附近停車 | ParkNear</title>
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="preconnect" href="https://tile.openstreetmap.org" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    :root { --ink:#17332d; --muted:#687a74; --green:#168466; --line:#e4ebe7; --paper:#fff; --bg:#f4f7f5; --amber:#d48b19; --red:#d75e51; }
+    * { box-sizing:border-box }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif; }
+    button,input,select { font:inherit }
+    .shell { width:min(1180px,100%); margin:auto; padding:22px 22px 36px }
+    header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px }
+    .brand { display:flex; gap:11px; align-items:center }
+    .brand-mark { width:42px; height:42px; border-radius:14px; display:grid; place-items:center; color:white; background:var(--green); font-size:22px }
+    h1 { font-size:22px; margin:0; letter-spacing:-.4px }
+    .tagline { color:var(--muted); font-size:12px; margin-top:3px }
+    .source-pill { border:1px solid var(--line); border-radius:99px; color:var(--muted); background:white; padding:8px 11px; font-size:12px }
+    .toolbar { display:grid; grid-template-columns:minmax(220px,1fr) auto; gap:10px; margin-bottom:12px }
+    .search-wrap { position:relative }
+    .search-wrap span { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#81918b }
+    input,select { width:100%; border:1px solid var(--line); border-radius:12px; background:white; color:var(--ink); height:46px; padding:0 13px; outline:none }
+    input { padding-left:40px }
+    input:focus,select:focus { border-color:#77b7a1; box-shadow:0 0 0 3px #16846618 }
+    button { border:0; cursor:pointer; border-radius:12px; font-weight:650; transition:.15s }
+    .primary { background:var(--green); color:#fff; padding:0 17px; height:46px; white-space:nowrap }
+    .primary:hover { background:#0e7055 }
+    .filters { display:flex; align-items:center; gap:8px; margin:0 0 16px; overflow:auto; padding-bottom:1px }
+    .filter { background:#fff; color:var(--muted); padding:8px 13px; border:1px solid var(--line); border-radius:99px; white-space:nowrap; font-size:13px }
+    .filter.active { color:#12674f; border-color:#a7d1c1; background:#eaf5f0 }
+    .status { min-height:26px; color:var(--muted); font-size:12px; margin-bottom:8px }
+    .layout { display:grid; grid-template-columns:minmax(340px, .92fr) minmax(440px,1.28fr); gap:16px; align-items:stretch }
+    .panel { background:var(--paper); border:1px solid var(--line); border-radius:18px; overflow:hidden; box-shadow:0 5px 18px #193b2d08 }
+    .list-panel { min-height:590px; display:flex; flex-direction:column }
+    .list-head { padding:18px 18px 13px; display:flex; align-items:end; justify-content:space-between }
+    .list-head h2 { margin:0; font-size:16px }
+    .count { color:var(--muted); font-size:12px }
+    .results { overflow:auto; max-height:660px; padding:0 10px 10px }
+    .card { padding:15px 12px; border-top:1px solid #edf1ef; display:grid; grid-template-columns:1fr auto; gap:7px 10px; cursor:pointer; border-radius:10px }
+    .card:hover,.card.selected { background:#f4faf7 }
+    .card-title { font-size:15px; font-weight:700; line-height:1.4 }
+    .distance { color:var(--muted); font-size:12px; align-self:center; white-space:nowrap }
+    .address,.fee,.updated { color:var(--muted); font-size:12px; line-height:1.5; grid-column:1 / -1 }
+    .badges { display:flex; gap:6px; flex-wrap:wrap; grid-column:1/-1; margin-top:1px }
+    .badge { border-radius:7px; background:#f0f4f2; color:#52665f; padding:4px 7px; font-size:11px }
+    .badge.good { color:#0a7456; background:#e5f5ed }
+    .badge.limited { color:#9a6812; background:#fff4db }
+    .badge.full { color:#b5443a; background:#fff0ed }
+    .badge.unknown { color:#687a74; background:#f0f4f2 }
+    .google-link { grid-column:1/-1; justify-self:start; color:#126b53; font-size:12px; font-weight:700; text-decoration:none; padding:5px 0 0 }
+    .google-link:hover { text-decoration:underline }
+    .fee-list { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:7px 14px; color:#52665f; font-size:12px; line-height:1.45 }
+    .fee-row { display:flex; gap:5px; align-items:baseline }
+    .fee-row strong { color:#17332d; font-weight:700 }
+    .popup-title { font-size:15px; font-weight:750; margin-bottom:4px }
+    .map-panel { min-height:590px; position:relative }
+    #map { position:absolute; inset:0; width:100%; height:100%; min-height:590px }
+    .map-actions { position:absolute; z-index:600; right:12px; bottom:46px; display:flex; flex-direction:column; gap:8px }
+    .map-action { width:46px; height:46px; display:grid; place-items:center; border-radius:14px; background:#fff; color:#17332d; box-shadow:0 2px 10px #0003; font-size:24px; line-height:1; touch-action:manipulation; -webkit-tap-highlight-color:transparent }
+    .map-action.locate { color:#126b53; font-size:19px }
+    .map-action:active { background:#eaf5f0; transform:scale(.96) }
+    .map-note { position:absolute; z-index:500; left:12px; bottom:12px; padding:7px 10px; background:#fff; border:1px solid var(--line); box-shadow:0 2px 7px #0001; border-radius:9px; color:var(--muted); font-size:11px }
+    .parking-popup { position:absolute; z-index:590; top:12px; left:12px; width:min(320px,calc(100% - 48px)); max-height:calc(100% - 72px); overflow:auto; padding:13px; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 4px 18px #0003 }
+    .parking-popup.hidden { display:none }
+    .parking-popup .popup-title { padding-right:32px }
+    .popup-close { position:absolute; top:7px; right:7px; width:27px; height:27px; display:grid; place-items:center; padding:0; border-radius:8px; color:#52665f; background:#f0f4f2; font-size:18px; line-height:1; touch-action:manipulation }
+    .popup-close:hover { background:#e4ebe7 }
+    .parking-popup .google-link { display:inline-block; padding-top:8px }
+    .location-gate { position:fixed; inset:0; z-index:2000; display:grid; place-items:center; padding:20px; background:#0e211bcc; backdrop-filter:blur(4px) }
+    .location-gate.hidden { display:none }
+    .gate-card { width:min(420px,100%); padding:25px; border-radius:22px; background:#fff; box-shadow:0 20px 60px #0004; text-align:center }
+    .gate-icon { width:54px; height:54px; display:grid; place-items:center; margin:0 auto 12px; border-radius:18px; background:#eaf5f0; color:#168466; font-size:27px }
+    .gate-card h2 { margin:0 0 8px; font-size:20px }
+    .gate-card p { margin:0 0 18px; color:var(--muted); font-size:14px; line-height:1.6 }
+    .gate-card .primary { width:100%; margin-bottom:9px }
+    .secondary { width:100%; min-height:42px; background:#f1f5f3; color:#52665f }
+    .empty { text-align:center; padding:40px 20px; color:var(--muted); font-size:14px }
+    .footer { color:#7e8d87; font-size:11px; padding:15px 2px 0; line-height:1.6 }
+    .leaflet-popup-content-wrapper { border-radius:12px }
+    .leaflet-popup-content { margin:12px 14px; line-height:1.55 }
+    .pin { width:31px;height:31px;border-radius:50% 50% 50% 5px;transform:rotate(-45deg);display:grid;place-items:center;color:white;font-size:12px;font-weight:800;border:2px solid white;box-shadow:0 2px 7px #0004 }
+    .pin span { transform:rotate(45deg) }
+    @media(max-width:780px) {
+      .shell { padding:15px 14px 24px }
+      header { margin-bottom:15px }
+      .source-pill { display:none }
+      .toolbar { grid-template-columns:1fr auto; gap:8px }
+      .search-wrap { grid-column:1/-1 }
+      .primary { grid-column:2 }
+      .layout { display:flex; flex-direction:column-reverse; gap:12px }
+      .map-panel,#map { min-height:320px; height:320px }
+      .list-panel { min-height:300px }
+      .results { max-height:420px }
+      .list-head { padding:15px 15px 10px }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brand"><div class="brand-mark">P</div><div><h1>附近停車</h1><div class="tagline">快速找到有空位的停車場</div></div></div>
+      <div class="source-pill">政府公開資料 · 即時更新</div>
+    </header>
+    <section class="toolbar" aria-label="停車場搜尋">
+      <label class="search-wrap"><span>⌕</span><input id="query" placeholder="搜尋停車場、地址或行政區" autocomplete="off" /></label>
+      <button id="locate" class="primary">◎ 使用目前位置</button>
+    </section>
+    <nav class="filters" aria-label="停車類型">
+      <button class="filter active" data-kind="car">汽車</button><button class="filter" data-kind="motor">機車</button><button class="filter" data-kind="all">全部車種</button>
+      <button class="filter" data-open="true">只看有空位</button>
+    </nav>
+    <div id="status" class="status">先定位，或移動地圖瀏覽附近停車場。</div>
+    <section class="layout">
+      <section class="panel list-panel">
+        <div class="list-head"><h2>附近停車場</h2><span id="count" class="count"></span></div>
+        <div id="results" class="results"><div class="empty">定位後顯示目前位置附近 3 公里內的停車場。</div></div>
+      </section>
+      <section class="panel map-panel"><div id="map"></div><div id="parking-popup" class="parking-popup hidden" role="dialog" aria-label="停車場資訊"><button id="close-parking-popup" class="popup-close" aria-label="關閉停車資訊" title="關閉">×</button><div id="parking-popup-content"></div></div><div class="map-actions" aria-label="地圖控制"><button id="map-locate" class="map-action locate" aria-label="定位到我目前的位置" title="定位到我目前的位置">◎</button><button id="map-zoom-in" class="map-action" aria-label="放大地圖" title="放大">＋</button><button id="map-zoom-out" class="map-action" aria-label="縮小地圖" title="縮小">−</button></div><div class="map-note">單指拖曳 · ＋／− 縮放</div></section>
+    </section>
+    <div class="footer">車位資訊由政府公開資料提供，更新時間依各縣市而異；實際空位可能因進出場而變動，請以現場為準。已設定 Google Maps 金鑰時使用 Google 地圖；尚未設定時會暫用 OpenStreetMap。</div>
+  </main>
+  <div id="location-gate" class="location-gate" role="dialog" aria-modal="true" aria-labelledby="gate-title"><div class="gate-card"><div class="gate-icon">◎</div><h2 id="gate-title">先找你附近的停車位</h2><p>允許定位後，先載入目前位置周圍 3 公里內的停車場。你也可以不分享位置，直接移動地圖查詢。</p><button id="start-location" class="primary">使用目前位置</button><button id="start-browse" class="secondary">先瀏覽地圖</button></div></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/proj4@2.11.0/dist/proj4.js"></script>
+  <script>
+    const cityNames = { Taipei:'台北市', NewTaipei:'新北市', Taoyuan:'桃園市', Taichung:'台中市' };
+    const googleMapsKey = "__GOOGLE_MAPS_API_KEY__";
+    let lots = [], user = null, kind = 'car', openOnly = false, selectedId = null, markers = new Map(), userMarker = null, accuracyCircle = null, watchId = null, locateTimer = null, mapEngine = 'leaflet';
+    let started = false, locationRadiusMode = false, activeBounds = null, requestId = 0, areaTimer = null, lastAreaKey = '', programmaticMapUntil = 0;
+    const $ = (id) => document.getElementById(id);
+    let map;
+    async function initMap() {
+      if (googleMapsKey && googleMapsKey !== '__GOOGLE_MAPS_API_KEY__') {
+        try {
+          await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey)}&language=zh-TW&region=TW`;s.async=true;s.onload=resolve;s.onerror=reject;document.head.appendChild(s);});
+          map=new google.maps.Map($('map'),{center:{lat:25.0478,lng:121.5319},zoom:13,gestureHandling:'greedy',zoomControl:false,mapTypeControl:false,streetViewControl:false,fullscreenControl:false});
+          mapEngine='google';
+          map.addListener('dragstart',()=>{locationRadiusMode=false;});
+          map.addListener('zoom_changed',()=>{if(Date.now()>programmaticMapUntil)locationRadiusMode=false;});
+          map.addListener('idle',()=>{if(started&&!locationRadiusMode)scheduleAreaLoad();});
+          return;
+        } catch(e) { $('status').textContent='Google 地圖載入失敗，改用備用地圖。'; }
+      }
+      map=L.map('map',{zoomControl:true}).setView([25.0478,121.5319],13);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+      map.on('dragstart',()=>{locationRadiusMode=false;});
+      map.on('zoomstart',()=>{if(Date.now()>programmaticMapUntil)locationRadiusMode=false;});
+      map.on('moveend',()=>{if(started&&!locationRadiusMode)scheduleAreaLoad();});
+    }
+    const mapReady=initMap();
+    const num = (v) => { const n=Number(v); return Number.isFinite(n) ? n : null; };
+    const norm = s => (s || '').normalize('NFKC').toLowerCase();
+    proj4.defs('EPSG:3826', '+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +units=m +no_defs +type=crs');
+    function normalizeLot(lot) {
+      if ((lot.lat === null || lot.lat === undefined) && lot.tw97x && lot.tw97y) {
+        const [lon,lat]=proj4('EPSG:3826','EPSG:4326',[Number(lot.tw97x),Number(lot.tw97y)]); lot.lat=lat; lot.lon=lon;
+      }
+      return lot;
+    }
+    function currentMapBounds() {
+      if(mapEngine==='google') {
+        const b=map.getBounds(); if(!b)return null;
+        const sw=b.getSouthWest(),ne=b.getNorthEast();
+        return {south:sw.lat(),west:sw.lng(),north:ne.lat(),east:ne.lng()};
+      }
+      const b=map.getBounds(),sw=b.getSouthWest(),ne=b.getNorthEast();
+      return {south:sw.lat,west:sw.lng,north:ne.lat,east:ne.lng};
+    }
+    function radiusBounds(point,radiusKm=3) {
+      const latDelta=radiusKm/110.574,lonDelta=radiusKm/(111.32*Math.max(.2,Math.cos(point.lat*Math.PI/180)));
+      return {south:point.lat-latDelta,west:point.lon-lonDelta,north:point.lat+latDelta,east:point.lon+lonDelta};
+    }
+    function scheduleAreaLoad() { clearTimeout(areaTimer); areaTimer=setTimeout(loadArea,350); }
+    function boundsKey(b) { return Object.values(b).map(v=>Number(v).toFixed(4)).join(','); }
+    function inBounds(l,b) { return l.lat>=b.south&&l.lat<=b.north&&l.lon>=b.west&&l.lon<=b.east; }
+    async function loadArea(force=false) {
+      await mapReady;
+      if(!started)return;
+      const bounds=locationRadiusMode&&user?radiusBounds(user):currentMapBounds();
+      if(!bounds)return;
+      const key=boundsKey(bounds);
+      if(!force&&key===lastAreaKey)return;
+      lastAreaKey=key; activeBounds=bounds;
+      const currentRequest=++requestId;
+      $('status').textContent=locationRadiusMode?'正在搜尋你附近 3 公里內的停車場…':'正在載入目前地圖範圍的停車場…';
+      try {
+        const params=new URLSearchParams({bounds:Object.values(bounds).join(',')});
+        const r=await fetch(`/api/parking?${params}`,{cache:'no-store'});
+        const data=await r.json();
+        if(!r.ok && !data.lots?.length) throw new Error(data.error||'停車場資料目前無法讀取');
+        if(currentRequest!==requestId)return;
+        lots=(data.lots||[]).map(normalizeLot).filter(x=>x.lat&&x.lon&&inBounds(x,bounds));
+        const errors=data.errors||[];
+        $('status').textContent=errors.length?`部分停車資料暫時無法取得：${errors.map(e=>cityNames[e.city]||e.city).join('、')}`:`已載入此區域 ${lots.length} 個停車場 · ${new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})}`;
+      } catch(e) {
+        if(currentRequest!==requestId)return;
+        $('status').textContent=`停車場資料載入失敗：${e.message}。可稍後重新整理。`;
+        lots=[];
+      }
+      render();
+    }
+    function distance(a,b) {
+      const R=6371, rad=x=>x*Math.PI/180, dLat=rad(b.lat-a.lat), dLon=rad(b.lon-a.lon);
+      const h=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2;
+      return 2*R*Math.asin(Math.sqrt(h));
+    }
+    function selectedStatus(lot, which) {
+      const count=lot[which], level=lot[which+'Level'];
+      if(count!==null && count!==undefined) return { text:count>0?'有空位':'無空位', count:count>0?count:null, level:count>0?'good':'full', open:count>0 };
+      if(level==='good'||level==='limited') return { text:'有空位', count:null, level:'good', open:true };
+      if(level==='full') return { text:'無空位', count:null, level:'full', open:false };
+      const raw=lot[which+'Status'];
+      if(raw==='有空位'||raw==='車位有限') return { text:'有空位', count:null, level:'good', open:true };
+      if(raw==='已滿'||raw==='無空位') return { text:'無空位', count:null, level:'full', open:false };
+      return { text:'無即時資料', count:null, level:'unknown', open:false };
+    }
+    function render() {
+      const q=norm($('query').value), center=user || (mapEngine==='google'&&map?{lat:map.getCenter().lat(),lon:map.getCenter().lng()}:{lat:map.getCenter().lat,lon:map.getCenter().lng});
+      const filtered=lots.map(l=>({...l,distance:distance(center,{lat:l.lat,lon:l.lon})}))
+        .filter(l=>!q||norm([l.name,l.address,l.area,cityNames[l.city]].join(' ')).includes(q))
+        .filter(l=>locationRadiusMode&&user ? l.distance<=3 : !activeBounds||inBounds(l,activeBounds))
+        .filter(l=>!openOnly || (kind==='all'?selectedStatus(l,'car').open||selectedStatus(l,'motor').open:selectedStatus(l,kind).open))
+        .sort((a,b)=>a.distance-b.distance);
+      $('count').textContent=`${filtered.length} 個地點`;
+      $('results').innerHTML=filtered.length ? filtered.map(l=>cardHtml(l)).join('') : '<div class="empty">這個範圍沒有符合條件的停車場。<br>試著擴大搜尋範圍或切換縣市。</div>';
+      $('results').querySelectorAll('.card').forEach(el=>el.addEventListener('click',()=>selectLot(el.dataset.id)));
+      updateMarkers(filtered);
+    }
+    function googleMapsUrl(l) {
+      const u=new URL('https://www.google.com/maps/dir/');
+      u.searchParams.set('api','1'); u.searchParams.set('destination',`${l.lat},${l.lon}`); u.searchParams.set('travelmode','driving');
+      return u.toString();
+    }
+    function cardHtml(l) {
+      const dist=l.distance<1?`${Math.round(l.distance*1000)} 公尺`:`${l.distance.toFixed(1)} 公里`;
+      return `<article class="card ${selectedId===l.id?'selected':''}" data-id="${l.id}"><div class="card-title">${esc(l.name)}</div><div class="distance">${user?dist:cityNames[l.city]}</div><div class="address">${esc([l.area,l.address].filter(Boolean).join(' · '))}</div><div class="badges">${availabilityBadgesHtml(l)}<span class="badge">${cityNames[l.city]}</span></div>${feeDetailsHtml(l)}<a class="google-link" href="${googleMapsUrl(l)}" target="_blank" rel="noopener noreferrer" aria-label="以 Google 地圖導航到${esc(l.name)}">在 Google 地圖導航 ↗</a></article>`;
+    }
+    function esc(s) { return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function availabilityBadgesHtml(l) {
+      const types=kind==='all'?[['汽車','car'],['機車','motor']]:[[kind==='motor'?'機車':'汽車',kind==='motor'?'motor':'car']];
+      return types.map(([label,key])=>{const s=selectedStatus(l,key);const count=s.count!==null?` · ${s.count} 位`:'';return `<span class="badge ${s.level}">${label} ${s.text}${count}</span>`;}).join('');
+    }
+    function feeDetailsHtml(l) {
+      const fees=[['每小時',l.hourlyFee],['月租',l.monthlyFee]].filter(([,value])=>Number.isFinite(value)&&value>=0);
+      return fees.length?`<div class="fee-list">${fees.map(([label,value])=>`<div class="fee-row"><span>${label}</span><strong>NT$ ${Number(value).toLocaleString('zh-TW')}</strong></div>`).join('')}</div>`:'';
+    }
+    function lotPopupHtml(l) { return `<div class="popup-title">${esc(l.name)}</div><div class="badges">${availabilityBadgesHtml(l)}</div>${feeDetailsHtml(l)}<a class="google-link" href="${googleMapsUrl(l)}" target="_blank" rel="noopener noreferrer">在 Google 地圖導航 ↗</a>`; }
+    function showLotPopup(l) { $('parking-popup-content').innerHTML=lotPopupHtml(l);$('parking-popup').classList.remove('hidden'); }
+    function hideLotPopup() { $('parking-popup').classList.add('hidden'); }
+    function iconFor(l) {
+      const s=selectedStatus(l,kind==='motor'?'motor':'car'); const color=s.level==='good'?'#168466':s.level==='limited'?'#d48b19':s.level==='full'?'#d75e51':'#6f837b';
+      const val=(l[kind==='motor'?'motor':'car']??'•');
+      return L.divIcon({className:'',html:`<div class="pin" style="background:${color}"><span>${val}</span></div>`,iconSize:[31,31],iconAnchor:[16,30],popupAnchor:[0,-30]});
+    }
+    function updateMarkers(visible) {
+      if(mapEngine==='google') markers.forEach(m=>m.setMap(null)); else markers.forEach(m=>m.remove()); markers.clear();
+      if(mapEngine==='google') {
+        visible.forEach(l=>{
+          const val=l[kind==='motor'?'motor':'car']??'';
+          const marker=new google.maps.Marker({position:{lat:l.lat,lng:l.lon},map,title:l.name,label:val===''?undefined:{text:String(val),color:'#fff',fontWeight:'700'}});
+          marker.addListener('click',()=>{showLotPopup(l);selectedId=l.id;$('results').querySelectorAll('.card').forEach(c=>c.classList.toggle('selected',c.dataset.id===l.id));});
+          markers.set(l.id,marker);
+        });
+        if(user) {
+          const position={lat:user.lat,lng:user.lon};
+          if(!userMarker) userMarker=new google.maps.Marker({position,map,title:'目前位置',zIndex:1000,icon:{path:google.maps.SymbolPath.CIRCLE,scale:8,fillColor:'#3982ef',fillOpacity:1,strokeColor:'#fff',strokeWeight:3}}); else userMarker.setPosition(position);
+          if(!accuracyCircle) accuracyCircle=new google.maps.Circle({map,center:position,radius:user.accuracy||0,strokeColor:'#3982ef',strokeOpacity:.6,strokeWeight:1,fillColor:'#3982ef',fillOpacity:.08}); else {accuracyCircle.setCenter(position);accuracyCircle.setRadius(user.accuracy||0);}
+        }
+        return;
+      }
+      visible.forEach(l=>{
+        const marker=L.marker([l.lat,l.lon],{icon:iconFor(l)}).addTo(map);
+        marker.on('click',()=>{showLotPopup(l);selectedId=l.id;$('results').querySelectorAll('.card').forEach(c=>c.classList.toggle('selected',c.dataset.id===l.id));});
+        markers.set(l.id,marker);
+      });
+      if(user && !userMarker) userMarker=L.circleMarker([user.lat,user.lon],{radius:7,color:'#fff',weight:3,fillColor:'#3982ef',fillOpacity:1}).addTo(map);
+      else if(userMarker) userMarker.setLatLng([user.lat,user.lon]);
+      if(user && user.accuracy && !accuracyCircle) accuracyCircle=L.circle([user.lat,user.lon],{radius:user.accuracy,color:'#3982ef',weight:1,fillColor:'#3982ef',fillOpacity:.08}).addTo(map);
+      else if(user && accuracyCircle) accuracyCircle.setLatLng([user.lat,user.lon]).setRadius(user.accuracy||0);
+    }
+    function focusMapOnUser() { if(!user||!map)return; programmaticMapUntil=Date.now()+1200; if(mapEngine==='google'){map.panTo({lat:user.lat,lng:user.lon});map.setZoom(16);}else{map.setView([user.lat,user.lon],15,{animate:true});} }
+    function changeMapZoom(delta) { if(!map)return; locationRadiusMode=false; if(mapEngine==='google')map.setZoom(map.getZoom()+delta);else if(delta>0)map.zoomIn();else map.zoomOut(); }
+    function selectLot(id) { selectedId=id; const l=lots.find(x=>x.id===id); if(!l)return; locationRadiusMode=false; if(mapEngine==='google'){map.setCenter({lat:l.lat,lng:l.lon});map.setZoom(16);}else{map.setView([l.lat,l.lon],16);}showLotPopup(l);$('results').querySelectorAll('.card').forEach(c=>c.classList.toggle('selected',c.dataset.id===id)); }
+    function finishWatch() { if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;} if(locateTimer){clearTimeout(locateTimer);locateTimer=null;} }
+    function requestLocation(){
+      if(!navigator.geolocation){$('status').textContent='這個瀏覽器不支援定位。';return;}
+      finishWatch(); let best=Infinity; $('locate').textContent='正在取得精確位置…'; $('status').textContent='正在等待裝置提供較新的定位結果…';
+      watchId=navigator.geolocation.watchPosition(pos=>{
+        const accuracy=pos.coords.accuracy||0;
+        if(accuracy<=best){best=accuracy;user={lat:pos.coords.latitude,lon:pos.coords.longitude,accuracy};started=true;locationRadiusMode=true;$('location-gate').classList.add('hidden');$('locate').textContent=`◎ 精度 ±${Math.round(accuracy)}m`;$('status').textContent=`定位精度約 ±${Math.round(accuracy)} 公尺；先顯示目前位置 3 公里內的停車場。`;focusMapOnUser();scheduleAreaLoad();}
+        if(best<=25) finishWatch();
+      },err=>{finishWatch();if(!user){$('locate').textContent='◎ 使用目前位置';$('status').textContent='無法取得位置，請允許瀏覽器定位權限，或直接搜尋地址／行政區。';}}, {enableHighAccuracy:true,maximumAge:0,timeout:25000});
+      locateTimer=setTimeout(()=>{finishWatch();if(user){$('status').textContent+=` 已採用目前最佳精度 ±${Math.round(user.accuracy)} 公尺。`; }else{$('locate').textContent='◎ 使用目前位置';$('status').textContent='定位逾時，請稍後重試，或直接搜尋地址／行政區。';}},10000);
+    }
+    $('locate').addEventListener('click',requestLocation); $('map-locate').addEventListener('click',requestLocation); $('start-location').addEventListener('click',requestLocation);
+    $('close-parking-popup').addEventListener('click',hideLotPopup);
+    $('start-browse').addEventListener('click',()=>{$('location-gate').classList.add('hidden');started=true;locationRadiusMode=false;scheduleAreaLoad();});
+    $('map-zoom-in').addEventListener('click',()=>changeMapZoom(1)); $('map-zoom-out').addEventListener('click',()=>changeMapZoom(-1));
+    $('query').addEventListener('input',render);
+    document.querySelectorAll('.filter[data-kind]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.filter[data-kind]').forEach(x=>x.classList.remove('active'));b.classList.add('active');kind=b.dataset.kind;render();}));
+    document.querySelector('.filter[data-open]').addEventListener('click',e=>{openOnly=!openOnly;e.currentTarget.classList.toggle('active',openOnly);render();});
+    setInterval(()=>{if(started)loadArea(true);},120000);
+  </script>
+</body>
+</html>
