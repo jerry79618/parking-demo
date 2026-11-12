@@ -1,0 +1,5 @@
+dist/
+.openai/
+.env
+.env.*
+.dev.vars
